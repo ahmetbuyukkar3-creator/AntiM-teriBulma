@@ -22,30 +22,33 @@ _UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
 _last_jina_request = 0
 
 
-def _jina_read(url: str) -> str:
+def _jina_read(url: str, max_retries: int = 3) -> str:
     """Jina Reader ile bir web sayfasını markdown olarak oku."""
     global _last_jina_request
 
-    elapsed = time.time() - _last_jina_request
-    if elapsed < 3:
-        time.sleep(3 - elapsed)
+    for attempt in range(max_retries):
+        elapsed = time.time() - _last_jina_request
+        if elapsed < 3:
+            time.sleep(3 - elapsed)
 
-    safe_url = urllib.parse.quote(url, safe=':/?=&%#')
-    jina_url = f"https://r.jina.ai/{safe_url}"
-    req = urllib.request.Request(
-        jina_url,
-        headers={"User-Agent": _UA, "Accept": "text/plain"},
-    )
-    try:
-        _last_jina_request = time.time()
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            return resp.read().decode("utf-8")
-    except Exception as e:
-        logger.warning(f"  ⚠️ Jina okuma hatası ({url}): {e}")
-        if "429" in str(e):
-            logger.info("  ⏳ Rate limit, 15 saniye bekleniyor...")
-            time.sleep(15)
-        return ""
+        safe_url = urllib.parse.quote(url, safe=':/?=&%#')
+        jina_url = f"https://r.jina.ai/{safe_url}"
+        req = urllib.request.Request(
+            jina_url,
+            headers={"User-Agent": _UA, "Accept": "text/plain"},
+        )
+        try:
+            _last_jina_request = time.time()
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                return resp.read().decode("utf-8")
+        except Exception as e:
+            logger.warning(f"  ⚠️ Jina okuma hatası ({url}): {e}")
+            if "429" in str(e):
+                logger.info(f"  ⏳ Rate limit, 20 saniye beklenip tekrar deneniyor... (Deneme {attempt+1}/{max_retries})")
+                time.sleep(20)
+                continue
+            return ""
+    return ""
 
 
 def _jina_search(query: str) -> str:
@@ -72,6 +75,12 @@ def _extract_emails(text: str) -> List[str]:
             continue
         if len(e) > 60:
             continue
+            
+        # Typo düzeltmesi
+        if e_lower.endswith("@mail.com"):
+            e = e[:-9] + "@gmail.com"
+            e_lower = e.lower()
+            
         clean.append(e)
     return list(set(clean))
 
