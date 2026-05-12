@@ -5,3 +5,4 @@ google-auth-httplib2==0.2.0
 google-api-python-client==2.129.0
 requests==2.32.3
 python-dateutil==2.9.0.post0
+schedule==1.2.2

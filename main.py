@@ -8,6 +8,8 @@ import sys
 import io
 import logging
 
+import time
+import schedule
 from config import Config
 from lead_finder import find_leads
 from lead_analyzer import analyze_leads
@@ -27,7 +29,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-def main():
+def run_pipeline():
     logger.info("==================================================")
     logger.info("🚀 RUMAYSOFT İZMİR OUTREACH BAŞLIYOR")
     logger.info("==================================================")
@@ -66,6 +68,20 @@ def main():
     logger.info("==================================================")
     logger.info("✅ GÜNLÜK İŞLEM BAŞARIYLA TAMAMLANDI")
     logger.info("==================================================")
+
+def main():
+    logger.info("🕒 Sistem başlatıldı. Zamanlayıcı (Cron) devrede.")
+    logger.info("   -> Çalışma saatleri (TSİ): Sabah 09:00 ve Akşam 18:00")
+    
+    # Sunucu UTC saatinde çalıştığı için Türkiye Saati (TSİ = UTC+3) ayarlaması yapıyoruz.
+    # 09:00 TSİ -> 06:00 UTC
+    # 18:00 TSİ -> 15:00 UTC
+    schedule.every().day.at("06:00").do(run_pipeline)
+    schedule.every().day.at("15:00").do(run_pipeline)
+    
+    while True:
+        schedule.run_pending()
+        time.sleep(60)
 
 if __name__ == "__main__":
     try:
