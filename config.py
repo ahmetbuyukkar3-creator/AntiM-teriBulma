@@ -15,6 +15,19 @@ logger = logging.getLogger(__name__)
 class Config:
     """Environment variable tabanlı konfigürasyon."""
 
+    @classmethod
+    def load_base64_google_auth(cls):
+        import base64
+        cred_b64 = os.environ.get("GOOGLE_CREDENTIALS_B64")
+        if cred_b64 and not os.path.exists(cls.GOOGLE_CREDENTIALS_PATH):
+            with open(cls.GOOGLE_CREDENTIALS_PATH, "wb") as f:
+                f.write(base64.b64decode(cred_b64))
+        
+        token_b64 = os.environ.get("GOOGLE_TOKEN_B64")
+        if token_b64 and not os.path.exists(cls.GOOGLE_TOKEN_PATH):
+            with open(cls.GOOGLE_TOKEN_PATH, "wb") as f:
+                f.write(base64.b64decode(token_b64))
+
     # ── GENEL ────────────────────────────────────────────────────
     PROJECT_NAME = "Izmir_Outreach"
     DAILY_LEAD_COUNT = int(os.environ.get("DAILY_LEAD_COUNT", "30"))
@@ -84,3 +97,5 @@ class Config:
     def advance_rotation(cls):
         # Artık kullanılmıyor, main.py tüm listeyi tarayacak.
         pass
+
+Config.load_base64_google_auth()
