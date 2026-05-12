@@ -1,0 +1,86 @@
+"""
+İzmir Outreach Pipeline — Konfigürasyon
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+"""
+import os
+import json
+import logging
+from dotenv import load_dotenv
+
+# .env dosyasını yükle
+load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
+
+logger = logging.getLogger(__name__)
+
+class Config:
+    """Environment variable tabanlı konfigürasyon."""
+
+    # ── GENEL ────────────────────────────────────────────────────
+    PROJECT_NAME = "Izmir_Outreach"
+    DAILY_LEAD_COUNT = int(os.environ.get("DAILY_LEAD_COUNT", "30"))
+    DRY_RUN = os.environ.get("DRY_RUN", "false").lower() == "true"
+
+    # ── HEDEF BÖLGE ──────────────────────────────────────────────
+    TARGET_CITY = os.environ.get("TARGET_CITY", "İzmir")
+
+    # ── SEKTÖR KATEGORİLERİ ──────────────────────────────────────
+    SEARCH_CATEGORIES = [
+        "butik",
+        "tekstil",
+        "elektrik",
+        "market",
+        "restoran",
+        "diş kliniği",
+        "avukatlık bürosu",
+        "güzellik salonu",
+        "mali müşavir",
+        "özel eğitim",
+        "kafe kahve dükkanı",
+        "mimarlık",
+        "inşaat firması",
+        "emlak ofisi",
+        "sigorta acentesi"
+    ]
+
+    # ── TELEGRAM ─────────────────────────────────────────────────
+    TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+    TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
+
+    # ── GMAIL ────────────────────────────────────────────────────
+    SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "rumaysoft@gmail.com")
+    GOOGLE_CREDENTIALS_PATH = os.path.join(os.path.dirname(__file__), "credentials.json")
+    GOOGLE_TOKEN_PATH = os.path.join(os.path.dirname(__file__), "token.json")
+
+    # ── LLM ──────────────────────────────────────────────────────
+    GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
+    OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
+    KIMI_API_KEY = os.environ.get("KIMI_API_KEY", "")
+    LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "kimi")
+
+    # ── VERİ DOSYALARI ───────────────────────────────────────────
+    DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
+    LEADS_HISTORY_FILE = os.path.join(DATA_DIR, "leads_history.json")
+    SENT_EMAILS_FILE = os.path.join(DATA_DIR, "sent_emails.json")
+    ROTATION_STATE_FILE = os.path.join(DATA_DIR, "rotation_state.json")
+
+    @classmethod
+    def validate(cls):
+        """Zorunlu konfigürasyon değerlerini kontrol eder."""
+        warnings = []
+        if not cls.TELEGRAM_BOT_TOKEN:
+            warnings.append("TELEGRAM_BOT_TOKEN tanımlı değil")
+        
+        os.makedirs(cls.DATA_DIR, exist_ok=True)
+        for w in warnings:
+            logger.warning(f"⚠️ {w}")
+        return True
+
+    @classmethod
+    def get_todays_category_index(cls):
+        # Artık kullanılmıyor, main.py tüm listeyi tarayacak.
+        return 0
+
+    @classmethod
+    def advance_rotation(cls):
+        # Artık kullanılmıyor, main.py tüm listeyi tarayacak.
+        pass
