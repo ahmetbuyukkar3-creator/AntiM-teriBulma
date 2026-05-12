@@ -38,21 +38,21 @@ class Config:
 
     # ── SEKTÖR KATEGORİLERİ ──────────────────────────────────────
     SEARCH_CATEGORIES = [
-        "butik",
-        "tekstil",
-        "elektrik",
-        "market",
+        "butik giyim",
+        "tekstil atölyesi",
+        "elektrik malzemeleri",
+        "market bakkal",
         "restoran",
         "diş kliniği",
-        "avukatlık bürosu",
         "güzellik salonu",
-        "mali müşavir",
-        "özel eğitim",
-        "kafe kahve dükkanı",
-        "mimarlık",
+        "özel eğitim merkezi",
+        "kafe kahvaltı",
+        "mimarlık ofisi",
         "inşaat firması",
         "emlak ofisi",
-        "sigorta acentesi"
+        "sigorta acentesi",
+        "eczane",
+        "veteriner kliniği"
     ]
 
     # ── TELEGRAM ─────────────────────────────────────────────────
