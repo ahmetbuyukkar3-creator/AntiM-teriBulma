@@ -57,6 +57,7 @@ def run_pipeline():
     ready_leads = compose_emails(analyzed_leads)
     
     # 5. Aşama: Mailleri Gönder
+    send_telegram_message(f"⏳ <b>Bilgilendirme</b>\n{len(ready_leads)} firma başarıyla bulundu, analiz edildi ve mailleri hazırlandı.\n\nŞimdi sırayla mail gönderme işlemine geçiliyor. Bittiğinde son rapor gelecek.")
     send_results = send_emails(ready_leads)
     
     # 6. Aşama: Telegram Günlük Raporu At
@@ -71,13 +72,10 @@ def run_pipeline():
 
 def main():
     logger.info("🕒 Sistem başlatıldı. Zamanlayıcı (Cron) devrede.")
-    logger.info("   -> Çalışma saatleri (TSİ): Sabah 09:00 ve Akşam 18:00")
+    logger.info("   -> Çalışma Sıklığı: Her saat başı")
     
-    # Sunucu UTC saatinde çalıştığı için Türkiye Saati (TSİ = UTC+3) ayarlaması yapıyoruz.
-    # 09:00 TSİ -> 06:00 UTC
-    # 18:00 TSİ -> 15:00 UTC
-    schedule.every().day.at("06:00").do(run_pipeline)
-    schedule.every().day.at("15:00").do(run_pipeline)
+    # Her saat başı çalışacak şekilde zamanlayıcı kuruldu
+    schedule.every().hour.do(run_pipeline)
     
     while True:
         schedule.run_pending()

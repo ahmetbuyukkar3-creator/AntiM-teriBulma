@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 FALLBACK_TEMPLATES = {
     "stok_takibi": """Merhaba {yetkili_adi},
 
-Nasılsınız? Ben Cem, Rumaysoft'tan ulaşıyorum. İzmir bölgesindeki değerli işletmeleri incelerken firmanız {business_name} dikkatimi çekti. {kisisellestirme}
+Nasılsınız? Ben Ahmet, Rumaysoft'tan ulaşıyorum. İzmir bölgesindeki değerli işletmeleri incelerken firmanız {business_name} dikkatimi çekti. {kisisellestirme}
 
 Günümüzde işletmelerin en büyük zorluklarından biri stoklarını ve siparişlerini manuel olarak takip etmek. Rumaysoft olarak geliştirdiğimiz Akıllı Stok Takip Otomasyonu ile bu süreci tamamen dijitalleştiriyor, stok azaldığında size haber veren ve siparişleri otomatik düzenleyen bir sistem kuruyoruz.
 
@@ -23,14 +23,14 @@ Bu sayede zamandan tasarruf edip doğrudan satışlara odaklanabiliyorsunuz. Kon
 
 İyi çalışmalar dilerim.
 
-Cem
+Ahmet
 Rumaysoft Ekibi
-0555 XXX XX XX
+0553 705 8337
 rumaysoft.com""",
 
     "web_sitesi": """Merhaba {yetkili_adi},
 
-Nasılsınız? Ben Cem, Rumaysoft'tan yazıyorum. {business_name} markanızı internette ararken fark ettim. {kisisellestirme}
+Nasılsınız? Ben Ahmet, Rumaysoft'tan yazıyorum. {business_name} markanızı internette ararken fark ettim. {kisisellestirme}
 
 Müşterilerinizin çoğu sizi dijital dünyada arıyor ancak etkili bir web siteniz olmadığını gördük. Rumaysoft olarak yerel işletmeler için çok uygun fiyatlara mobil uyumlu, modern ve satış getiren web siteleri kuruyoruz.
 
@@ -38,14 +38,14 @@ Sadece 1 hafta içinde tüm dijital varlığınızı profesyonel bir seviyeye ta
 
 Geri dönüşünüzü bekliyorum, iyi çalışmalar.
 
-Cem
+Ahmet
 Rumaysoft Ekibi
-0555 XXX XX XX
+0553 705 8337
 rumaysoft.com""",
 
     "ai_asistan": """Merhaba {yetkili_adi},
 
-Umarım harika bir gün geçiriyorsunuzdur. Ben Cem, Rumaysoft ekibinden ulaşıyorum. {business_name} işletmenizin müşteri iletişimini incelerken size çok fayda sağlayacak bir çözümümüz olduğunu düşündüm. {kisisellestirme}
+Umarım harika bir gün geçiriyorsunuzdur. Ben Ahmet, Rumaysoft ekibinden ulaşıyorum. {business_name} işletmenizin müşteri iletişimini incelerken size çok fayda sağlayacak bir çözümümüz olduğunu düşündüm. {kisisellestirme}
 
 Müşterilerinizden gelen mesajlara 7/24 anında yanıt verebilen, randevu alabilen ve bilgi sağlayan "Yapay Zeka Müşteri Asistanı" kuruyoruz. Bu sistem sayesinde hiçbir müşteriyi kaçırmıyor, mesajlara cevap verme yükünden tamamen kurtuluyorsunuz.
 
@@ -53,9 +53,9 @@ Bu sistemi WhatsApp veya Instagram'ınıza entegre etmemiz çok kolay. Sistemin 
 
 Haberlerinizi bekliyorum.
 
-Cem
+Ahmet
 Rumaysoft Ekibi
-0555 XXX XX XX
+0553 705 8337
 rumaysoft.com"""
 }
 
@@ -71,7 +71,11 @@ Asla "Sayın Yetkili", "Saygılarımla" gibi çok resmi ve robotik/spam kokan if
 
 Görevin: Verilen firma bilgisi ve kişiselleştirme ipucunu kullanarak, satılması hedeflenen hizmete uygun bir mail yazmak.
 Kısa tut (maksimum 4-5 paragraf). Satış yapmaya çalışma, sadece merak uyandırıp görüşme talep et (CTA: telefon veya mesajla dönüş).
-Kendini "Cem, Rumaysoft ekibinden" olarak tanıt.
+Kendini "Ahmet, Rumaysoft ekibinden" olarak tanıt. Mailin sonuna şu imza bloğunu mutlaka ekle:
+Ahmet
+Rumaysoft Ekibi
+0553 705 8337
+rumaysoft.com
 
 Ek Olarak: Mailin uygun bir yerine, Rumaysoft olarak sunduğumuz diğer hizmetlerden de (Modern Web Tasarımı, Yapay Zeka Destekli Satış Asistanları, Özel CRM ve Yazılım Çözümleri, İş Otomasyonları vb.) ufak, sıkıcı olmayan ve doğal bir cümleyle bahset ki, firmaya uygun farklı bir ihtiyaçları varsa bize oradan da dönebilsinler.
 

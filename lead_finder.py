@@ -52,17 +52,11 @@ def _jina_read(url: str, max_retries: int = 3) -> str:
     return ""
 
 
-def _jina_search(query: str) -> str:
-    """Google arama sonuçlarını Jina Reader ile oku (s.jina.ai yerine)."""
-    safe_q = urllib.parse.quote(query)
-    google_url = f"https://www.google.com/search?q={safe_q}&num=20&hl=tr"
-    return _jina_read(google_url)
-
-
 def _extract_emails(text: str) -> List[str]:
     """Metinden e-posta adreslerini çıkar."""
     if not text:
         return []
+    import re
     pattern = r'[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}'
     emails = re.findall(pattern, text)
     # Spam / sahte olanları filtrele
@@ -85,22 +79,69 @@ def _extract_emails(text: str) -> List[str]:
         clean.append(e)
     return list(set(clean))
 
+def _apify_search_google_maps(query: str, limit: int = 30) -> List[Dict]:
+    """Apify üzerinden Google Maps araması yapar, engellere takılmaz."""
+    if not Config.APIFY_TOKEN:
+        logger.error("❌ APIFY_TOKEN bulunamadı. Lütfen .env dosyasını kontrol edin.")
+        return []
 
-def _extract_urls(search_result: str) -> List[Dict]:
-    """Jina Search sonucundan firma URL'lerini çıkar."""
-    results = []
-    # Markdown link formatı: [Title](URL)
-    links = re.findall(r'\[([^\]]+)\]\((https?://[^\)]+)\)', search_result)
-    for title, url in links:
-        # Google/sosyal medya/genel siteler hariç, gerçek firma sitelerini al
-        skip = ['google.com', 'facebook.com', 'instagram.com', 'twitter.com',
-                'youtube.com', 'linkedin.com', 'tripadvisor', 'yemeksepeti',
-                'trendyol', 'sahibinden', 'hepsiburada', 'wikipedia',
-                'foursquare', 'yelp', 'jina.ai', 'maps.google']
-        if any(s in url.lower() for s in skip):
-            continue
-        results.append({"title": title.strip(), "url": url.strip()})
-    return results
+    url = f"https://api.apify.com/v2/acts/compass~crawler-google-places/runs?token={Config.APIFY_TOKEN}"
+    payload = {
+        "searchStringsArray": [query],
+        "maxCrawledPlacesPerSearch": limit,
+        "language": "tr",
+        "countryCode": "tr"
+    }
+    
+    logger.info(f"  🤖 Apify Google Maps Extractor başlatılıyor: '{query}'")
+    try:
+        import requests
+        resp = requests.post(url, json=payload, timeout=15)
+        resp.raise_for_status()
+        run_id = resp.json()["data"]["id"]
+        
+        # İşlemin bitmesini bekle
+        logger.info(f"  ⏳ Apify görevi ({run_id}) başlatıldı. Tamamlanması bekleniyor...")
+        while True:
+            status_url = f"https://api.apify.com/v2/actor-runs/{run_id}?token={Config.APIFY_TOKEN}"
+            status_resp = requests.get(status_url, timeout=15).json()
+            status = status_resp["data"]["status"]
+            
+            if status == "SUCCEEDED":
+                dataset_id = status_resp["data"]["defaultDatasetId"]
+                break
+            elif status in ["FAILED", "ABORTED", "TIMED-OUT"]:
+                logger.error(f"  ❌ Apify görevi başarısız oldu: {status}")
+                return []
+            time.sleep(5)
+            
+        # Sonuçları çek
+        dataset_url = f"https://api.apify.com/v2/datasets/{dataset_id}/items?token={Config.APIFY_TOKEN}"
+        items = requests.get(dataset_url, timeout=15).json()
+        
+        results = []
+        for item in items:
+            website = item.get("website")
+            if website:
+                # Sosyal medya/genel siteler hariç
+                skip = ['google.com', 'facebook.com', 'instagram.com', 'twitter.com',
+                        'youtube.com', 'linkedin.com', 'tripadvisor', 'yemeksepeti',
+                        'trendyol', 'sahibinden', 'hepsiburada', 'wikipedia']
+                if any(s in website.lower() for s in skip):
+                    continue
+                    
+                results.append({
+                    "title": item.get("title", ""),
+                    "url": website,
+                    "phone": item.get("phoneUnformatted", item.get("phone", "")),
+                    "apify_email": item.get("email", ""),  # Apify'den direkt gelen mail
+                })
+        logger.info(f"  ✅ Apify'den web sitesi olan {len(results)} işletme alındı.")
+        return results
+
+    except Exception as e:
+        logger.error(f"❌ Apify arama hatası: {e}")
+        return []
 
 
 def _load_history() -> set:
@@ -138,20 +179,13 @@ def find_leads(count: int = 30) -> List[Dict]:
 
         logger.info(f"  ▶️ Kategori taranıyor: '{category}'")
 
-        # Jina Search ile Google'da arama yap
-        query = f"{category} İzmir iletişim e-posta"
-        search_result = _jina_search(query)
+        # Apify ile arama yap
+        query = f"{category} {Config.TARGET_CITY}"
+        urls = _apify_search_google_maps(query, limit=count*2) # Hedefin 2 katı arayalım ki fire payı olsun
 
-        if not search_result:
-            logger.info(f"    ⚠️ Arama sonucu boş, diğer kategoriye geçiliyor.")
+        if not urls:
+            logger.info(f"    ⚠️ Apify sonucu boş veya hata oluştu, diğer kategoriye geçiliyor.")
             continue
-
-        # Arama sonuçlarından e-posta ve URL çek
-        # Önce direkt arama sonuçlarındaki e-postaları kontrol et
-        direct_emails = _extract_emails(search_result)
-        urls = _extract_urls(search_result)
-
-        logger.info(f"    📊 {len(urls)} web sitesi bulundu, {len(direct_emails)} direkt e-posta tespit edildi")
 
         # Her URL'yi ziyaret edip e-posta ara
         for site in urls:
@@ -165,19 +199,33 @@ def find_leads(count: int = 30) -> List[Dict]:
             if title.lower() in {h.lower() for h in history}:
                 continue
 
-            # Web sitesini oku
-            page_content = _jina_read(url)
-            if not page_content:
-                continue
+            # E-posta bul: Önce Apify'den, yoksa siteden çek
+            apify_email = site.get("apify_email", "")
+            
+            if apify_email and "@" in apify_email:
+                # Apify direkt vermiş, siteye girmeye gerek yok
+                best_email = apify_email
+                page_content = ""
+                logger.info(f"    📧 Apify'den direkt mail alındı: {apify_email}")
+            else:
+                # Siteye girip mail kazı
+                page_content = _jina_read(url)
+                if not page_content:
+                    continue
 
-            # E-posta çıkar
-            emails = _extract_emails(page_content)
-            if not emails:
-                continue
+                emails = _extract_emails(page_content)
+                if not emails:
+                    continue
+                
+                # Kişisel maili tercih et (info@ en son seçenek)
+                personal = [e for e in emails if not e.lower().startswith("info@")]
+                best_email = personal[0] if personal else emails[0]
 
-            # Telefon numarası ara
-            phone_match = re.search(r'(?:0\d{3}[\s\-]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2}|\+90\s?\d{3}\s?\d{3}\s?\d{2}\s?\d{2})', page_content)
-            phone = re.sub(r'\s+', '', phone_match.group(0)) if phone_match else ""
+            phone = site.get("phone", "")
+            if not phone:
+                # Eğer Apify'da telefon yoksa sayfadan tarayalım
+                phone_match = re.search(r'(?:0\d{3}[\s\-]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2}|\+90\s?\d{3}\s?\d{3}\s?\d{2}\s?\d{2})', page_content)
+                phone = re.sub(r'\s+', '', phone_match.group(0)) if phone_match else ""
 
             lead = {
                 "business_name": title,
@@ -186,7 +234,7 @@ def find_leads(count: int = 30) -> List[Dict]:
                 "phone": phone,
                 "address": "",
                 "website": url,
-                "email": emails[0],
+                "email": best_email,
                 "instagram": "",
                 "facebook": "",
                 "found_date": datetime.now().isoformat(),
@@ -196,7 +244,7 @@ def find_leads(count: int = 30) -> List[Dict]:
             history.add(title)
             logger.info(
                 f"    ✅ Lead #{len(leads)}: {title} "
-                f"— 📧 {emails[0]} (Kategori: {category})"
+                f"— 📧 {best_email} (Kategori: {category})"
             )
 
     _save_history(history)

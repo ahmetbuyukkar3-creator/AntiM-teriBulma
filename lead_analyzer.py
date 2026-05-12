@@ -16,55 +16,67 @@ from lead_finder import _jina_read
 
 logger = logging.getLogger(__name__)
 
-def _call_llm(prompt: str, system_prompt: str = "") -> str:
-    """Belirtilen LLM sağlayıcısını çağırarak yanıt alır."""
-    
-    if Config.LLM_PROVIDER == "kimi" and Config.KIMI_API_KEY:
-        url = "https://api.moonshot.ai/v1/chat/completions"
-        api_key = Config.KIMI_API_KEY
-        model = "kimi-k2.6" # Yeni Kimi K2.6 modeli
-    elif Config.LLM_PROVIDER == "groq" and Config.GROQ_API_KEY:
-        url = "https://api.groq.com/openai/v1/chat/completions"
-        api_key = Config.GROQ_API_KEY
-        model = "llama3-70b-8192" # Groq modeli
-    elif Config.OPENAI_API_KEY:
-        url = "https://api.openai.com/v1/chat/completions"
-        api_key = Config.OPENAI_API_KEY
-        model = "gpt-4o-mini"
-    else:
-        logger.warning("⚠️ LLM API anahtarı (Kimi/Groq/OpenAI) bulunamadı — Temel analiz kullanılacak.")
+def _call_single_llm(provider: str, api_key: str, model: str, messages: list, timeout: int = 25) -> str:
+    """Tek bir LLM sağlayıcısını çağırır."""
+    urls = {
+        "kimi": "https://api.moonshot.ai/v1/chat/completions",
+        "groq": "https://api.groq.com/openai/v1/chat/completions",
+        "openai": "https://api.openai.com/v1/chat/completions",
+    }
+    url = urls.get(provider, "")
+    if not url or not api_key:
         return ""
-    
+
+    payload = {"model": model, "messages": messages}
+    # Kimi reasoning modelleri temperature desteklemiyor
+    if provider != "kimi":
+        payload["temperature"] = 0.7
+        payload["max_tokens"] = 500
+
+    resp = requests.post(
+        url,
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        json=payload,
+        timeout=timeout,
+    )
+    resp.raise_for_status()
+    return resp.json()["choices"][0]["message"]["content"]
+
+
+def _call_llm(prompt: str, system_prompt: str = "") -> str:
+    """Akıllı Fallback: Önce Kimi AI dener, timeout/hata olursa anında Groq'a düşer."""
+
     messages = []
     if system_prompt:
         messages.append({"role": "system", "content": system_prompt})
     messages.append({"role": "user", "content": prompt})
-    
-    payload = {
-        "model": model,
-        "messages": messages,
-    }
-    
-    # Kimi K2.6 gibi reasoning modelleri temperature=0.7 desteklemiyor
-    if Config.LLM_PROVIDER != "kimi":
-        payload["temperature"] = 0.7
-        payload["max_tokens"] = 500
 
-    try:
-        resp = requests.post(
-            url,
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-            },
-            json=payload,
-            timeout=120,
-        )
-        resp.raise_for_status()
-        return resp.json()["choices"][0]["message"]["content"]
-    except Exception as e:
-        logger.error(f"❌ LLM çağrı hatası: {e}")
+    # ── Sıralı deneme listesi (birincil → yedek) ──
+    providers = []
+    if Config.KIMI_API_KEY:
+        providers.append(("kimi", Config.KIMI_API_KEY, "kimi-k2.6", 25))
+    if Config.GROQ_API_KEY:
+        providers.append(("groq", Config.GROQ_API_KEY, "llama3-70b-8192", 15))
+    if Config.OPENAI_API_KEY:
+        providers.append(("openai", Config.OPENAI_API_KEY, "gpt-4o-mini", 20))
+
+    if not providers:
+        logger.warning("⚠️ Hiçbir LLM API anahtarı bulunamadı — Temel analiz kullanılacak.")
         return ""
+
+    for provider_name, api_key, model, timeout in providers:
+        try:
+            result = _call_single_llm(provider_name, api_key, model, messages, timeout)
+            if result:
+                if provider_name != "kimi":
+                    logger.info(f"  🔄 Yedek AI ({provider_name.upper()}) devreye girdi ve başarılı.")
+                return result
+        except Exception as e:
+            logger.warning(f"  ⚠️ {provider_name.upper()} başarısız ({type(e).__name__}), sıradaki deneniyor...")
+            continue
+
+    logger.error("❌ Tüm LLM sağlayıcıları başarısız — temel şablona düşülüyor.")
+    return ""
 
 def analyze_lead(lead: Dict) -> Dict:
     """Tek bir lead'i analiz ederek skor ve hizmet önerisi ekler."""
@@ -140,9 +152,36 @@ Web Sitesi var mı?: {'Evet' if has_website else 'Hayır'}
         except Exception as e:
             logger.warning(f"⚠️ LLM JSON çözümleme hatası: {e}. Yanıt: {response}")
 
-    # Kod düzeyinde kesin kural uygulaması (LLM yanılsa bile düzeltir)
+    # ══ KATEGORİ BAZLI KESİN KURAL TABLOSU ══════════════════════
+    # LLM çökse bile her sektöre DOĞRU hizmet gidecek.
+    # Bu tablo kullanıcı tarafından onaylanmıştır (2026-05-12).
+    
+    STOK_TAKIBI_KATEGORILERI = [
+        "market", "butik", "tekstil", "elektrik",
+        "restoran", "kafe", "kahve",
+    ]
+    
+    AI_ASISTAN_KATEGORILERI = [
+        "diş", "klinik", "güzellik", "salon",
+        "eğitim", "avukat", "hukuk",
+        "mali müşavir", "muhasebe", "müşavir",
+        "sigorta", "emlak",
+        "mimarlık", "mimar",
+        "inşaat",
+    ]
+    
+    cat_lower = lead.get("category", "").lower()
+    
     if not has_website:
+        # Web sitesi yoksa → BANKO web sitesi öner
         analysis["en_uygun_hizmet"] = "web_sitesi"
+    elif any(x in cat_lower for x in STOK_TAKIBI_KATEGORILERI):
+        analysis["en_uygun_hizmet"] = "stok_takibi"
+    elif any(x in cat_lower for x in AI_ASISTAN_KATEGORILERI):
+        analysis["en_uygun_hizmet"] = "ai_asistan"
+    else:
+        # Tanınmayan kategori → güvenli varsayılan
+        analysis["en_uygun_hizmet"] = "ai_asistan"
 
     lead["analysis_score"] = analysis["uygunluk_skoru"]
     lead["best_service"] = analysis["en_uygun_hizmet"]
