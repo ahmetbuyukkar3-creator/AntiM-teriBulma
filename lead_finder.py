@@ -11,6 +11,7 @@ import logging
 import urllib.request
 import urllib.parse
 import time
+import random
 from datetime import datetime
 from typing import List, Dict
 
@@ -127,8 +128,11 @@ def find_leads(count: int = 30) -> List[Dict]:
 
     history = _load_history()
     leads = []
+    
+    categories = list(Config.SEARCH_CATEGORIES)
+    random.shuffle(categories)
 
-    for category in Config.SEARCH_CATEGORIES:
+    for category in categories:
         if len(leads) >= count:
             break
 

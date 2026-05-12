@@ -73,6 +73,8 @@ Görevin: Verilen firma bilgisi ve kişiselleştirme ipucunu kullanarak, satılm
 Kısa tut (maksimum 4-5 paragraf). Satış yapmaya çalışma, sadece merak uyandırıp görüşme talep et (CTA: telefon veya mesajla dönüş).
 Kendini "Cem, Rumaysoft ekibinden" olarak tanıt.
 
+Ek Olarak: Mailin uygun bir yerine, Rumaysoft olarak sunduğumuz diğer hizmetlerden de (Modern Web Tasarımı, Yapay Zeka Destekli Satış Asistanları, Özel CRM ve Yazılım Çözümleri, İş Otomasyonları vb.) ufak, sıkıcı olmayan ve doğal bir cümleyle bahset ki, firmaya uygun farklı bir ihtiyaçları varsa bize oradan da dönebilsinler.
+
 YANITINI SADECE AŞAĞIDAKİ FORMATTA VER (Subject ve Body olarak iki satır grubu):
 
 SUBJECT: [Mail Konusu - Dikkat çekici ama spam olmayan, emojili olabilir]

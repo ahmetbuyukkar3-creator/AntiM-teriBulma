@@ -30,7 +30,7 @@ class Config:
 
     # ── GENEL ────────────────────────────────────────────────────
     PROJECT_NAME = "Izmir_Outreach"
-    DAILY_LEAD_COUNT = int(os.environ.get("DAILY_LEAD_COUNT", "30"))
+    DAILY_LEAD_COUNT = int(os.environ.get("DAILY_LEAD_COUNT", "20"))
     DRY_RUN = os.environ.get("DRY_RUN", "false").lower() == "true"
 
     # ── HEDEF BÖLGE ──────────────────────────────────────────────

@@ -7,6 +7,8 @@ kişiselleştirilmiş e-postaları hedeflere gönderir.
 import os
 import base64
 import logging
+import time
+import random
 from typing import List, Dict
 from email.message import EmailMessage
 
@@ -102,7 +104,7 @@ def send_emails(leads: List[Dict]) -> Dict:
         results["failed"] = len(leads)
         return results
 
-    for lead in leads:
+    for i, lead in enumerate(leads):
         email = lead.get("email")
         subject = lead.get("email_subject")
         body = lead.get("email_body")
@@ -124,6 +126,16 @@ def send_emails(leads: List[Dict]) -> Dict:
             lead["status"] = "failed"
             
         results["details"].append(lead)
+        
+        # Batch (Grup) Bekleme Mantığı
+        if (i + 1) % 5 == 0 and (i + 1) < len(leads):
+            if Config.DRY_RUN:
+                wait_time = 15  # Test için 15 saniye
+            else:
+                wait_time = random.randint(900, 1200)  # 15-20 dakika
+                
+            logger.info(f"⏳ BATCH MOLA: {i+1} mail gönderildi. Spam koruması için {wait_time} saniye ({wait_time//60} dakika) bekleniyor...")
+            time.sleep(wait_time)
         
     logger.info(f"✅ Gönderim tamamlandı. Başarılı: {results['success']}, Başarısız: {results['failed']}")
     return results
