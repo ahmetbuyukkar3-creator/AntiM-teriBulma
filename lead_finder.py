@@ -23,21 +23,21 @@ _UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
 _last_jina_request = 0
 
 
-def _jina_read(url: str, max_retries: int = 3) -> str:
-    """Jina Reader ile bir web sayfasını markdown olarak oku."""
+def _jina_read(url: str, max_retries: int = 5) -> str:
+    """Jina Reader ile bir web sayfasını markdown olarak oku. Başarısız olursa direkt çek."""
     global _last_jina_request
 
     for attempt in range(max_retries):
         elapsed = time.time() - _last_jina_request
-        if elapsed < 3:
-            time.sleep(3 - elapsed)
+        if elapsed < 6:
+            time.sleep(6 - elapsed)
 
         safe_url = urllib.parse.quote(url, safe=':/?=&%#')
         jina_url = f"https://r.jina.ai/{safe_url}"
-        req = urllib.request.Request(
-            jina_url,
-            headers={"User-Agent": _UA, "Accept": "text/plain"},
-        )
+        headers = {"User-Agent": _UA, "Accept": "text/plain"}
+        if Config.JINA_API_KEY:
+            headers["Authorization"] = f"Bearer {Config.JINA_API_KEY}"
+        req = urllib.request.Request(jina_url, headers=headers)
         try:
             _last_jina_request = time.time()
             with urllib.request.urlopen(req, timeout=30) as resp:
@@ -45,11 +45,23 @@ def _jina_read(url: str, max_retries: int = 3) -> str:
         except Exception as e:
             logger.warning(f"  ⚠️ Jina okuma hatası ({url}): {e}")
             if "429" in str(e):
-                logger.info(f"  ⏳ Rate limit, 20 saniye beklenip tekrar deneniyor... (Deneme {attempt+1}/{max_retries})")
-                time.sleep(20)
+                wait_time = 30 * (2 ** attempt)
+                logger.info(f"  ⏳ Rate limit, {wait_time} saniye bekleniyor... (Deneme {attempt+1}/{max_retries})")
+                time.sleep(wait_time)
                 continue
-            return ""
-    return ""
+            break # break to fallback
+            
+    # Fallback: Direkt siteye gir (Jina başarısız olduysa)
+    try:
+        import requests
+        import urllib3
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        logger.info(f"  🔄 Direkt HTTP isteği atılıyor (Fallback): {url}")
+        resp = requests.get(url, headers={"User-Agent": _UA}, timeout=20, verify=False)
+        return resp.text
+    except Exception as e:
+        logger.warning(f"  ❌ Direkt istek de başarısız ({url}): {e}")
+        return ""
 
 
 def _extract_emails(text: str) -> List[str]:
@@ -181,7 +193,7 @@ def find_leads(count: int = 30) -> List[Dict]:
 
         # Apify ile arama yap
         query = f"{category} {Config.TARGET_CITY}"
-        urls = _apify_search_google_maps(query, limit=count*2) # Hedefin 2 katı arayalım ki fire payı olsun
+        urls = _apify_search_google_maps(query, limit=count + 5)
 
         if not urls:
             logger.info(f"    ⚠️ Apify sonucu boş veya hata oluştu, diğer kategoriye geçiliyor.")

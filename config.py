@@ -59,6 +59,7 @@ class Config:
     TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
     TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
     APIFY_TOKEN = os.environ.get("APIFY_TOKEN", "")
+    JINA_API_KEY = os.environ.get("JINA_API_KEY", "")
 
     # ── GMAIL ────────────────────────────────────────────────────
     SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "rumaysoft@gmail.com")
