@@ -54,9 +54,9 @@ def _call_llm(prompt: str, system_prompt: str = "") -> str:
     # ── Sıralı deneme listesi (birincil → yedek) ──
     providers = []
     if Config.KIMI_API_KEY:
-        providers.append(("kimi", Config.KIMI_API_KEY, "kimi-k2.6", 25))
+        providers.append(("kimi", Config.KIMI_API_KEY, "kimi-k2.6", 60))  # reasoning model → daha uzun sürebilir
     if Config.GROQ_API_KEY:
-        providers.append(("groq", Config.GROQ_API_KEY, "llama3-70b-8192", 15))
+        providers.append(("groq", Config.GROQ_API_KEY, "llama-3.3-70b-versatile", 20))
     if Config.OPENAI_API_KEY:
         providers.append(("openai", Config.OPENAI_API_KEY, "gpt-4o-mini", 20))
 
