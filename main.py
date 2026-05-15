@@ -69,34 +69,31 @@ def run_pipeline():
     per_segment = Config.DAILY_LEAD_COUNT_PER_SEGMENT  # varsayılan 5
 
     # ── BRANCH 1: Özel Klinikler ──────────────────────────────────
-    logger.info(f"🏥 Branch 1 — Özel Klinikler taranıyor ({per_segment} hedef)...")
+    logger.info(f"🏥 Branch 1 — Özel Klinikler taranıyor (hedef: {per_segment})...")
     klinik_leads = find_leads(count=per_segment, categories=Config.KLINIK_CATEGORIES)
     for lead in klinik_leads:
         lead["segment"] = "klinik"
-    logger.info(f"  ✅ Klinik branch: {len(klinik_leads)} lead bulundu.")
 
     # ── BRANCH 2: Güzellik / Kuaför / Tırnak Bakım ───────────────
-    logger.info(f"✨ Branch 2 — Güzellik & Kuaför taranıyor ({per_segment} hedef)...")
+    logger.info(f"✨ Branch 2 — Güzellik & Kuaför taranıyor (hedef: {per_segment})...")
     guzellik_leads = find_leads(count=per_segment, categories=Config.GUZELLIK_CATEGORIES)
     for lead in guzellik_leads:
         lead["segment"] = "guzellik"
-    logger.info(f"  ✅ Güzellik branch: {len(guzellik_leads)} lead bulundu.")
 
-    # ── Birleştir ve de-duplicate (aynı e-posta adresini iki kez gönderme) ──
+    # ── Son güvenlik filtresi: ikinci kez geçersiz email kontrolü ──
+    # (birincil filtre zaten lead_finder.py içinde yapılıyor)
     all_raw = klinik_leads + guzellik_leads
-    seen_emails = set()
+    seen_emails_final = set()
     leads = []
     for lead in all_raw:
         email = lead.get("email", "").lower().strip()
-        # 1) Format doğrulaması
         if not _is_valid_email(email):
-            logger.warning(f"  ⚠️ Geçersiz e-posta atlandı: '{email}' ({lead.get('business_name')})")
+            logger.warning(f"  ⚠️ Son filtre — Geçersiz e-posta atlandı: '{email}' ({lead.get('business_name')})")
             continue
-        # 2) Mükerrer gönderim önleme
-        if email in seen_emails:
-            logger.warning(f"  ⚠️ Mükerrer e-posta atlandı: '{email}' ({lead.get('business_name')})")
+        if email in seen_emails_final:
+            logger.warning(f"  ⚠️ Son filtre — Mükerrer e-posta atlandı: '{email}'")
             continue
-        seen_emails.add(email)
+        seen_emails_final.add(email)
         leads.append(lead)
 
     if not leads:

@@ -64,32 +64,108 @@ def _jina_read(url: str, max_retries: int = 5) -> str:
         return ""
 
 
+# Domain tam eşleşme blocklist (gmail.com, hotmail.com gibi geçerli domainleri etkilemez)
+_BLOCKED_DOMAINS = {
+    "example.com", "test.com", "domain.com", "yoursite.com",
+    "sample.com", "placeholder.com", "company.com", "email.com",
+    "yourcompany.com", "yourdomain.com", "site.com", "website.com",
+    "mail.com", "email.net",
+    "wixpress.com", "wordpress.com", "squarespace.com",
+    "facebook.com", "instagram.com", "twitter.com", "google.com",
+    "linkedin.com", "youtube.com", "tiktok.com",
+    "sentry.io",
+}
+
+# Local kısım (@ öncesi) için prefix blocklist
+_BLOCKED_LOCAL_PREFIXES = [
+    "noreply", "no-reply", "donotreply", "do-not-reply",
+    "mailer-daemon", "postmaster", "bounce",
+]
+
+# Domain içinde aranacak substring'ler (platform adları)
+_BLOCKED_DOMAIN_SUBSTRINGS = [
+    "wixpress", "godaddy", "hostinger", "mailchimp", "sendgrid",
+    "shopify", "squarespace",
+]
+
+# Dosya uzantıları local kısmında veya domain kısmında olmamalı
+_BLOCKED_EXTENSIONS = [".png", ".jpg", ".gif", ".svg", ".webp", ".ico"]
+
+
+def _is_deliverable_email(email: str) -> bool:
+    """
+    E-postanın gerçek bir işletmeye ait olup olmadığını kontrol eder.
+    gmail.com / hotmail.com / outlook.com gibi geçerli sağlayıcıları BLOKE ETMEZ.
+    """
+    if not email or "@" not in email:
+        return False
+
+    email = email.strip()
+
+    if len(email) > 80 or len(email) < 6:
+        return False
+
+    if not re.match(r'^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$', email):
+        return False
+
+    email_lower = email.lower()
+    local, domain = email_lower.rsplit("@", 1)
+
+    # Domain yapı kontrolü
+    if "." not in domain or domain.startswith(".") or domain.endswith("."):
+        return False
+    tld = domain.rsplit(".", 1)[-1]
+    if len(tld) < 2 or len(tld) > 6:
+        return False
+
+    # Domain tam eşleşme bloğu (gmail.com etkilenmez)
+    if domain in _BLOCKED_DOMAINS:
+        return False
+
+    # Domain içinde platform adı geçiyor mu?
+    if any(b in domain for b in _BLOCKED_DOMAIN_SUBSTRINGS):
+        return False
+
+    # Local kısım blocklisti
+    if any(local.startswith(p) for p in _BLOCKED_LOCAL_PREFIXES):
+        return False
+
+    # Dosya uzantısı hataları
+    if any(ext in email_lower for ext in _BLOCKED_EXTENSIONS):
+        return False
+
+    # Tamamen rakamdan oluşan local = sistem adresi
+    if re.match(r'^\d+$', local):
+        return False
+
+    return True
+
+
 def _extract_emails(text: str) -> List[str]:
-    """Metinden e-posta adreslerini çıkar."""
+    """Metinden yüksek kaliteli e-posta adreslerini çıkarır."""
     if not text:
         return []
-    import re
-    pattern = r'[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}'
-    emails = re.findall(pattern, text)
-    # Spam / sahte olanları filtrele
-    blocked = ['example.com', 'sentry.io', 'wixpress', 'email.com',
-               'domain.com', 'yoursite', 'test.com', 'wordpress',
-               'placeholder', '.png', '.jpg', '.gif', '.svg']
+
+    raw = re.findall(r'[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}', text)
     clean = []
-    for e in emails:
-        e_lower = e.lower()
-        if any(b in e_lower for b in blocked):
-            continue
-        if len(e) > 60:
-            continue
-            
-        # Typo düzeltmesi
-        if e_lower.endswith("@mail.com"):
+    for e in raw:
+        # Typo düzeltmesi: @mail.com → @gmail.com (yaygın Türk yazım hatası)
+        if e.lower().endswith("@mail.com"):
             e = e[:-9] + "@gmail.com"
-            e_lower = e.lower()
-            
-        clean.append(e)
-    return list(set(clean))
+        if _is_deliverable_email(e):
+            clean.append(e)
+
+    # Öncelik sırası: kişisel/direkt > info@ > diğerleri
+    def _priority(addr):
+        a = addr.lower()
+        if a.startswith("info@") or a.startswith("iletisim@") or a.startswith("contact@"):
+            return 2
+        if a.startswith("noreply") or a.startswith("no-reply"):
+            return 10  # en düşük öncelik
+        return 1  # kişisel adres → en yüksek öncelik
+
+    clean = sorted(set(clean), key=_priority)
+    return clean
 
 def _apify_search_google_maps(query: str, limit: int = 30) -> List[Dict]:
     """Apify üzerinden Google Maps araması yapar, engellere takılmaz."""
@@ -178,71 +254,94 @@ def _save_history(history: set):
 
 def find_leads(count: int = 5, categories: list = None) -> List[Dict]:
     """
-    count kadar lead bulur.
+    Geçerli e-postası olan `count` kadar lead bulana kadar çalışır.
+    Geçersiz/sahte e-postalar sayıma dahil edilmez — yeni aday aranır.
     categories verilmezse Config.SEARCH_CATEGORIES kullanılır.
     """
     cats = list(categories) if categories else list(Config.SEARCH_CATEGORIES)
-    logger.info(f"🔍 Toplu arama başlıyor. Hedef: {count} firma — {Config.TARGET_CITY} | Kategoriler: {cats}")
+    logger.info(f"🔍 Lead arama başlıyor. Hedef: {count} geçerli firma — {Config.TARGET_CITY}")
 
     history = _load_history()
+    seen_emails: set = set()  # Bu çalışma içinde mükerrer mail önleme
     leads = []
 
-    categories = cats
-    random.shuffle(categories)
+    shuffled_cats = cats[:]
+    random.shuffle(shuffled_cats)
 
-    for category in categories:
+    # Kategorileri iki kez dön — ilk turda bulamazsak tekrar dene
+    for category in shuffled_cats * 2:
         if len(leads) >= count:
             break
 
-        logger.info(f"  ▶️ Kategori taranıyor: '{category}'")
+        logger.info(f"  ▶️ '{category}' taranıyor ({len(leads)}/{count} bulundu)...")
 
-        # Apify ile arama yap
-        query = f"{category} {Config.TARGET_CITY}"
-        urls = _apify_search_google_maps(query, limit=count + 5)
+        # Apify: count'un 3 katı aday çek — filtrelemeden sonra yeterli kalacak
+        search_query = f"{category} {Config.TARGET_CITY}"
+        candidates = _apify_search_google_maps(search_query, limit=max(count * 3, 15))
 
-        if not urls:
-            logger.info(f"    ⚠️ Apify sonucu boş veya hata oluştu, diğer kategoriye geçiliyor.")
+        if not candidates:
+            logger.info(f"    ⚠️ Apify sonuç döndürmedi, sonraki kategoriye geçiliyor.")
             continue
 
-        # Her URL'yi ziyaret edip e-posta ara
-        for site in urls:
+        for site in candidates:
             if len(leads) >= count:
                 break
 
-            title = site["title"]
-            url = site["url"]
+            title = site.get("title", "").strip()
+            url = site.get("url", "").strip()
 
-            # Daha önce bulunmuş mu?
-            if title.lower() in {h.lower() for h in history}:
+            if not title or not url:
                 continue
 
-            # E-posta bul: Önce Apify'den, yoksa siteden çek
-            apify_email = site.get("apify_email", "")
-            
-            if apify_email and "@" in apify_email:
-                # Apify direkt vermiş, siteye girmeye gerek yok
+            # Daha önce bu işletmeye mail atıldı mı?
+            if title.lower() in {h.lower() for h in history}:
+                logger.info(f"    ⏭️  Zaten gönderildi, atlanıyor: {title}")
+                continue
+
+            # ── E-posta Bulma ve Kalite Filtresi ──────────────────
+            best_email = ""
+            page_content = ""
+
+            # Önce Apify'nin direkt verdiği maili dene
+            apify_email = site.get("apify_email", "").strip()
+            if apify_email and _is_deliverable_email(apify_email):
                 best_email = apify_email
-                page_content = ""
-                logger.info(f"    📧 Apify'den direkt mail alındı: {apify_email}")
-            else:
-                # Siteye girip mail kazı
+                logger.info(f"    📧 Apify maili kullanıldı: {apify_email}")
+            elif apify_email and apify_email.lower().endswith("@mail.com"):
+                # Typo düzeltmesi
+                fixed = apify_email[:-9] + "@gmail.com"
+                if _is_deliverable_email(fixed):
+                    best_email = fixed
+                    logger.info(f"    📧 Apify maili düzeltildi: {apify_email} → {fixed}")
+
+            # Apify'den geçerli mail gelmedi → siteyi tara
+            if not best_email:
                 page_content = _jina_read(url)
                 if not page_content:
+                    logger.info(f"    ⚠️  Sayfa okunamadı, atlanıyor: {title}")
                     continue
 
                 emails = _extract_emails(page_content)
                 if not emails:
+                    logger.info(f"    ⚠️  Geçerli mail bulunamadı: {title}")
                     continue
-                
-                # Kişisel maili tercih et (info@ en son seçenek)
-                personal = [e for e in emails if not e.lower().startswith("info@")]
-                best_email = personal[0] if personal else emails[0]
 
+                best_email = emails[0]  # _extract_emails zaten kaliteye göre sıralı döner
+                logger.info(f"    📧 Siteden mail çekildi: {best_email}")
+
+            # Bu çalışmada zaten bu maile gönderim olacak mı?
+            if best_email.lower() in seen_emails:
+                logger.info(f"    ⏭️  Mükerrer mail, atlanıyor: {best_email}")
+                continue
+
+            # Telefon bul
             phone = site.get("phone", "")
-            if not phone:
-                # Eğer Apify'da telefon yoksa sayfadan tarayalım
-                phone_match = re.search(r'(?:0\d{3}[\s\-]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2}|\+90\s?\d{3}\s?\d{3}\s?\d{2}\s?\d{2})', page_content)
-                phone = re.sub(r'\s+', '', phone_match.group(0)) if phone_match else ""
+            if not phone and page_content:
+                m = re.search(
+                    r'(?:0\d{3}[\s\-]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2}|\+90\s?\d{3}\s?\d{3}\s?\d{2}\s?\d{2})',
+                    page_content
+                )
+                phone = re.sub(r'\s+', '', m.group(0)) if m else ""
 
             lead = {
                 "business_name": title,
@@ -258,15 +357,17 @@ def find_leads(count: int = 5, categories: list = None) -> List[Dict]:
             }
 
             leads.append(lead)
+            seen_emails.add(best_email.lower())
             history.add(title)
-            logger.info(
-                f"    ✅ Lead #{len(leads)}: {title} "
-                f"— 📧 {best_email} (Kategori: {category})"
-            )
+            logger.info(f"    ✅ Lead #{len(leads)}/{count}: {title} — 📧 {best_email}")
 
     _save_history(history)
 
-    logger.info(f"🎯 Toplam {len(leads)} lead bulundu (hedef: {count})")
+    if len(leads) < count:
+        logger.warning(f"⚠️  Hedef {count} lead'e ulaşılamadı, {len(leads)} lead bulundu.")
+    else:
+        logger.info(f"🎯 {len(leads)} geçerli lead bulundu.")
+
     return leads
 
 
