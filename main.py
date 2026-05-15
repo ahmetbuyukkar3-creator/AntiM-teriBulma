@@ -29,43 +29,108 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+def _is_valid_email(email: str) -> bool:
+    """Temel e-posta format doğrulaması. Açık sahte/hatalı adresleri filtreler."""
+    import re
+    if not email or "@" not in email:
+        return False
+    pattern = r'^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$'
+    if not re.match(pattern, email):
+        return False
+    # Kesinlikle geçersiz domainleri reddet
+    invalid_domains = [
+        "example.com", "test.com", "domain.com", "yoursite.com",
+        "email.com", "mail.com", "noreply", "no-reply",
+        "sentry.io", "wixpress.com", "wordpress.com",
+    ]
+    email_lower = email.lower()
+    if any(d in email_lower for d in invalid_domains):
+        return False
+    # Nokta ile biten veya @ ile başlayan adresler geçersiz
+    local, domain = email.rsplit("@", 1)
+    if not local or not domain or domain.startswith(".") or domain.endswith("."):
+        return False
+    return True
+
+
 def run_pipeline():
     logger.info("==================================================")
-    logger.info("🚀 RUMAYSOFT İZMİR OUTREACH BAŞLIYOR")
+    logger.info("🚀 RUMAYSOFT İZMİR OUTREACH BAŞLIYOR (v2 — 2 Branch)")
     logger.info("==================================================")
-    
+
     # Konfigürasyon kontrolü
     if not Config.validate():
         logger.error("❌ Konfigürasyon hatalı, işlem durduruluyor.")
         sys.exit(1)
-        
+
     if Config.DRY_RUN:
         logger.info("⚠️ DİKKAT: Sistem DRY-RUN (Test) modunda çalışıyor. Gerçek mail GÖNDERİLMEYECEK.")
-    
-    # 1. Aşama: Firmaları bul (Geniş havuz taraması)
-    leads = find_leads(count=Config.DAILY_LEAD_COUNT)
-    
+
+    per_segment = Config.DAILY_LEAD_COUNT_PER_SEGMENT  # varsayılan 5
+
+    # ── BRANCH 1: Özel Klinikler ──────────────────────────────────
+    logger.info(f"🏥 Branch 1 — Özel Klinikler taranıyor ({per_segment} hedef)...")
+    klinik_leads = find_leads(count=per_segment, categories=Config.KLINIK_CATEGORIES)
+    for lead in klinik_leads:
+        lead["segment"] = "klinik"
+    logger.info(f"  ✅ Klinik branch: {len(klinik_leads)} lead bulundu.")
+
+    # ── BRANCH 2: Güzellik / Kuaför / Tırnak Bakım ───────────────
+    logger.info(f"✨ Branch 2 — Güzellik & Kuaför taranıyor ({per_segment} hedef)...")
+    guzellik_leads = find_leads(count=per_segment, categories=Config.GUZELLIK_CATEGORIES)
+    for lead in guzellik_leads:
+        lead["segment"] = "guzellik"
+    logger.info(f"  ✅ Güzellik branch: {len(guzellik_leads)} lead bulundu.")
+
+    # ── Birleştir ve de-duplicate (aynı e-posta adresini iki kez gönderme) ──
+    all_raw = klinik_leads + guzellik_leads
+    seen_emails = set()
+    leads = []
+    for lead in all_raw:
+        email = lead.get("email", "").lower().strip()
+        # 1) Format doğrulaması
+        if not _is_valid_email(email):
+            logger.warning(f"  ⚠️ Geçersiz e-posta atlandı: '{email}' ({lead.get('business_name')})")
+            continue
+        # 2) Mükerrer gönderim önleme
+        if email in seen_emails:
+            logger.warning(f"  ⚠️ Mükerrer e-posta atlandı: '{email}' ({lead.get('business_name')})")
+            continue
+        seen_emails.add(email)
+        leads.append(lead)
+
     if not leads:
-        logger.warning("Bugün için uygun hiçbir firma (mailli) bulunamadı.")
-        send_telegram_message("⚠️ <b>Rumaysoft İzmir Outreach</b>\nBugün 500'e yakın sayfa taranmasına rağmen e-postası olan hiçbir firma bulunamadı.")
+        logger.warning("Bugün için geçerli e-postası olan hiçbir firma bulunamadı.")
+        send_telegram_message(
+            "⚠️ <b>Rumaysoft İzmir Outreach</b>\n"
+            "Bugün her iki branch tarandı ancak geçerli e-postası olan hiçbir firma bulunamadı."
+        )
         sys.exit(0)
-        
-    # 3. Aşama: AI ile Analiz et (Hizmet belirle)
+
+    klinik_count = sum(1 for l in leads if l.get("segment") == "klinik")
+    guzellik_count = sum(1 for l in leads if l.get("segment") == "guzellik")
+    logger.info(f"📊 Toplam {len(leads)} geçerli lead: 🏥 Klinik={klinik_count}, ✨ Güzellik={guzellik_count}")
+
+    # ── AI ile Analiz ─────────────────────────────────────────────
     analyzed_leads = analyze_leads(leads)
-    
-    # 4. Aşama: Kişiselleştirilmiş Mailleri Hazırla
+
+    # ── Kişiselleştirilmiş Mailleri Hazırla ──────────────────────
     ready_leads = compose_emails(analyzed_leads)
-    
-    # 5. Aşama: Mailleri Gönder
-    send_telegram_message(f"⏳ <b>Bilgilendirme</b>\n{len(ready_leads)} firma başarıyla bulundu, analiz edildi ve mailleri hazırlandı.\n\nŞimdi sırayla mail gönderme işlemine geçiliyor. Bittiğinde son rapor gelecek.")
+
+    # ── Mailleri Gönder ───────────────────────────────────────────
+    send_telegram_message(
+        f"⏳ <b>Bilgilendirme</b>\n"
+        f"{len(ready_leads)} firma hazırlandı (🏥 {klinik_count} klinik + ✨ {guzellik_count} güzellik).\n"
+        f"Şimdi mail gönderimi başlıyor. Bittiğinde rapor gelecek."
+    )
     send_results = send_emails(ready_leads)
-    
-    # 6. Aşama: Telegram Günlük Raporu At
+
+    # ── Telegram Günlük Raporu ────────────────────────────────────
     send_daily_report(ready_leads, send_results)
-    
-    # 7. Aşama: Önceki maillere yanıt gelmiş mi kontrol et
+
+    # ── Yanıt Kontrolü ────────────────────────────────────────────
     check_replies()
-    
+
     logger.info("==================================================")
     logger.info("✅ GÜNLÜK İŞLEM BAŞARIYLA TAMAMLANDI")
     logger.info("==================================================")

@@ -176,13 +176,18 @@ def _save_history(history: set):
         )
 
 
-def find_leads(count: int = 30) -> List[Dict]:
-    logger.info(f"🔍 Toplu arama başlıyor. Hedef: {count} firma — {Config.TARGET_CITY}")
+def find_leads(count: int = 5, categories: list = None) -> List[Dict]:
+    """
+    count kadar lead bulur.
+    categories verilmezse Config.SEARCH_CATEGORIES kullanılır.
+    """
+    cats = list(categories) if categories else list(Config.SEARCH_CATEGORIES)
+    logger.info(f"🔍 Toplu arama başlıyor. Hedef: {count} firma — {Config.TARGET_CITY} | Kategoriler: {cats}")
 
     history = _load_history()
     leads = []
-    
-    categories = list(Config.SEARCH_CATEGORIES)
+
+    categories = cats
     random.shuffle(categories)
 
     for category in categories:
@@ -270,6 +275,6 @@ if __name__ == "__main__":
     import io
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-    leads = find_leads(count=3)
+    leads = find_leads(count=2, categories=Config.KLINIK_CATEGORIES)
     print(json.dumps(leads, ensure_ascii=False, indent=2))
 

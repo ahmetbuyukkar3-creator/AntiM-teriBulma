@@ -30,30 +30,37 @@ class Config:
 
     # ── GENEL ────────────────────────────────────────────────────
     PROJECT_NAME = "Izmir_Outreach"
-    DAILY_LEAD_COUNT = int(os.environ.get("DAILY_LEAD_COUNT", "20"))
+    DAILY_LEAD_COUNT = int(os.environ.get("DAILY_LEAD_COUNT", "10"))  # toplam = klinik 5 + güzellik 5
     DRY_RUN = os.environ.get("DRY_RUN", "false").lower() == "true"
 
     # ── HEDEF BÖLGE ──────────────────────────────────────────────
     TARGET_CITY = os.environ.get("TARGET_CITY", "İzmir")
 
-    # ── SEKTÖR KATEGORİLERİ ──────────────────────────────────────
-    SEARCH_CATEGORIES = [
-        "butik giyim",
-        "tekstil atölyesi",
-        "elektrik malzemeleri",
-        "market bakkal",
-        "restoran",
-        "diş kliniği",
-        "güzellik salonu",
-        "özel eğitim merkezi",
-        "kafe kahvaltı",
-        "mimarlık ofisi",
-        "inşaat firması",
-        "emlak ofisi",
-        "sigorta acentesi",
-        "eczane",
-        "veteriner kliniği"
+    # ── SEKTÖR KATEGORİLERİ (2 branch: Klinik + Güzellik) ──────────
+    KLINIK_CATEGORIES = [
+        "özel diş kliniği",
+        "özel çocuk hastalıkları kliniği",
+        "özel dermatoloji kliniği",
+        "özel göz kliniği",
+        "özel ortopedi kliniği",
+        "özel plastik cerrahi kliniği",
+        "özel dahiliye kliniği",
+        "özel kadın doğum kliniği",
     ]
+
+    GUZELLIK_CATEGORIES = [
+        "güzellik merkezi",
+        "tırnak bakım salonu",
+        "bayan kuaför",
+        "kuaför salonu",
+        "estetik güzellik salonu",
+    ]
+
+    # Geriye dönük uyumluluk için birleşik liste
+    SEARCH_CATEGORIES = KLINIK_CATEGORIES + GUZELLIK_CATEGORIES
+
+    # Her segment için gönderilecek mail sayısı (toplam = 2 × bu değer)
+    DAILY_LEAD_COUNT_PER_SEGMENT = int(os.environ.get("DAILY_LEAD_COUNT_PER_SEGMENT", "5"))
 
     # ── TELEGRAM ─────────────────────────────────────────────────
     TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")

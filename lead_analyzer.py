@@ -93,23 +93,37 @@ def analyze_lead(lead: Dict) -> Dict:
             website_content = content[:25000]
             logger.info("    ✅ Kimi Ajani: Web sitesi icerigi basariyla cekildi.")
             
+    segment = lead.get("segment", "")
+    segment_hint = ""
+    if segment == "klinik":
+        segment_hint = ('DİKKAT: Bu işletme bir ÖZEL KLİNİK. Kliniklerin randevu yönetimi ve hasta iletişimi için '
+                        '"ai_asistan" hizmeti KESİNLİKLE doğru seçimdir. Kişiselleştirme ipucunu randevu/hasta '
+                        'iletişimi açısından yaz.')
+    elif segment == "guzellik":
+        segment_hint = ('DİKKAT: Bu işletme bir GÜZELLIK/KUAFÖR merkezi. Müşteri mesajlarını ve randevuları '
+                        'otomatikleştirmek için "ai_asistan" hizmeti en uygunudur. Kişiselleştirme ipucunu '
+                        'randevu takibi ve müşteri mesajları açısından yaz.')
+    elif not has_website:
+        segment_hint = 'DİKKAT: BU FİRMANIN WEB SİTESİ YOK. O YÜZDEN KESİNLİKLE "web_sitesi" HİZMETİNİ ÖNER.'
+    else:
+        segment_hint = 'DİKKAT: BU FİRMANIN ZATEN BİR WEB SİTESİ VAR. O YÜZDEN "web_sitesi" DIŞINDA BİR HİZMET ÖNER (stok_takibi veya ai_asistan).'
+
     system_prompt = f"""Sen Rumaysoft'un elit araştırma ve satış ajanısın (Kimi).
 Sana bir firmanın web sitesi verilerini veya adını/kategorisini vereceğim.
-Hedefin bu firmayı derinlemesine analiz edip, Rumaysoft'un 3 hizmetinden hangisine KESİN ihtiyacı olduğunu bulmak ve onlara özel, reddedemeyecekleri kadar kişisel bir açılış cümlesi yazmak.
+Hedefin bu firmayı derinlemesine analiz edip, Rumaysoft'un hizmetlerinden hangisine KESİN ihtiyacı olduğunu bulmak ve onlara özel, reddedemeyecekleri kadar kişisel bir açılış cümlesi yazmak.
 
 Rumaysoft şu 3 ana hizmeti satar:
 1. Akıllı Stok Takip Otomasyonu (Ürün takibi, azalan stok uyarısı)
 2. Profesyonel Web Sitesi Kurulumu (Modern, mobil uyumlu)
-3. AI Müşteri Asistanı (7/24 otomatik cevap veren bot)
+3. AI Müşteri Asistanı (7/24 otomatik cevap veren bot — randevu, soru, yönlendirme)
 
-Görevin: Sana verilen işletme bilgilerini (ve varsa kazınmış web sitesi verisini) inceleyerek Rumaysoft'un bu firmaya hangi hizmeti satabileceğini belirlemek.
-{'DİKKAT: BU FİRMANIN WEB SİTESİ YOK. O YÜZDEN KESİNLİKLE "web_sitesi" HİZMETİNİ ÖNER.' if not has_website else 'DİKKAT: BU FİRMANIN ZATEN BİR WEB SİTESİ VAR. O YÜZDEN "web_sitesi" DIŞINDA BİR HİZMET ÖNER (stok_takibi veya ai_asistan).'}
+{segment_hint}
 
 YANITINI SADECE AŞAĞIDAKİ GİBİ JSON FORMATINDA VER. HİÇBİR AÇIKLAMA YAZMA.
 {{
   "uygunluk_skoru": 8,
-  "en_uygun_hizmet": "stok_takibi", 
-  "kisisellestirme_ipucu": "Web sitenizdeki menü çeşitliliği harika, stok takibi ile maliyetlerinizi çok daha iyi yönetebilirsiniz."
+  "en_uygun_hizmet": "ai_asistan",
+  "kisisellestirme_ipucu": "Kliniğinizin web sitesinde randevu formu olduğunu gördüm, hasta mesajlarına 7/24 otomatik cevap veren bir asistan ile hasta memnuniyetini çok artırabilirsiniz."
 }}
 Not: "en_uygun_hizmet" alanı SADECE şu değerlerden biri olabilir: "stok_takibi", "web_sitesi", "ai_asistan"
 """
@@ -153,31 +167,27 @@ Web Sitesi var mı?: {'Evet' if has_website else 'Hayır'}
             logger.warning(f"⚠️ LLM JSON çözümleme hatası: {e}. Yanıt: {response}")
 
     # ══ KATEGORİ BAZLI KESİN KURAL TABLOSU ══════════════════════
-    # LLM çökse bile her sektöre DOĞRU hizmet gidecek.
-    # Bu tablo kullanıcı tarafından onaylanmıştır (2026-05-12).
-    
-    STOK_TAKIBI_KATEGORILERI = [
-        "market", "butik", "tekstil", "elektrik",
-        "restoran", "kafe", "kahve",
+    # Segment'e göre hizmet: klinik+güzellik her zaman ai_asistan.
+
+    SEGMENT_KLINIK_KEYWORDS = [
+        "klinik", "diş", "dermatoloji", "çocuk hastalıkları",
+        "göz kliniği", "ortopedi", "plastik cerrahi",
+        "dahiliye", "kadın doğum", "poliklinik", "tıp merkezi",
     ]
-    
-    AI_ASISTAN_KATEGORILERI = [
-        "diş", "klinik", "güzellik", "salon",
-        "eğitim", "avukat", "hukuk",
-        "mali müşavir", "muhasebe", "müşavir",
-        "sigorta", "emlak",
-        "mimarlık", "mimar",
-        "inşaat",
+
+    SEGMENT_GUZELLIK_KEYWORDS = [
+        "güzellik", "tırnak", "kuaför", "estetik güzellik",
+        "medikal estetik", "manikür", "pedikür", "spa",
     ]
-    
+
     cat_lower = lead.get("category", "").lower()
-    
+    segment = lead.get("segment", "")
+
     if not has_website:
-        # Web sitesi yoksa → BANKO web sitesi öner
         analysis["en_uygun_hizmet"] = "web_sitesi"
-    elif any(x in cat_lower for x in STOK_TAKIBI_KATEGORILERI):
-        analysis["en_uygun_hizmet"] = "stok_takibi"
-    elif any(x in cat_lower for x in AI_ASISTAN_KATEGORILERI):
+    elif segment == "klinik" or any(x in cat_lower for x in SEGMENT_KLINIK_KEYWORDS):
+        analysis["en_uygun_hizmet"] = "ai_asistan"
+    elif segment == "guzellik" or any(x in cat_lower for x in SEGMENT_GUZELLIK_KEYWORDS):
         analysis["en_uygun_hizmet"] = "ai_asistan"
     else:
         # Tanınmayan kategori → güvenli varsayılan

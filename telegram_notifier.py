@@ -67,37 +67,42 @@ def send_daily_report(analyzed_leads: List[Dict], send_results: Dict):
         send_telegram_message("⚠️ <b>Rumaysoft İzmir Outreach</b>\nBugün 500'e yakın sayfa taranmasına rağmen e-postası olan hiçbir firma bulunamadı.")
         return
         
+    klinik_leads = [l for l in analyzed_leads if l.get("segment") == "klinik"]
+    guzellik_leads = [l for l in analyzed_leads if l.get("segment") == "guzellik"]
+    other_leads = [l for l in analyzed_leads if l.get("segment") not in ("klinik", "guzellik")]
+
     lines = [
-        "📊 <b>Rumaysoft İzmir Outreach — Günlük Rapor</b>",
+        "📊 <b>Rumaysoft İzmir Outreach — Günlük Rapor (v2)</b>",
         f"📅 Hedef Şehir: <i>{Config.TARGET_CITY}</i>",
+        f"🏥 Klinik: <b>{len(klinik_leads)}</b> | ✨ Güzellik: <b>{len(guzellik_leads)}</b>",
         "",
-        "🔍 <b>Bulunan ve Ulaşılan Firmalar:</b>"
+        "🔍 <b>Gönderilen Firmalar:</b>"
     ]
-    
-    # Kategoriye göre grupla
-    grouped = {}
-    for lead in analyzed_leads:
-        cat = lead.get('category', 'Bilinmiyor')
-        if cat not in grouped:
-            grouped[cat] = []
-        grouped[cat].append(lead)
-        
-    for cat, items in grouped.items():
-        lines.append(f"\n📂 <b>Kategori: {cat.upper()}</b>")
+
+    segment_groups = []
+    if klinik_leads:
+        segment_groups.append(("🏥 Özel Klinikler", klinik_leads))
+    if guzellik_leads:
+        segment_groups.append(("✨ Güzellik & Kuaför", guzellik_leads))
+    if other_leads:
+        segment_groups.append(("📂 Diğer", other_leads))
+
+    for segment_title, items in segment_groups:
+        lines.append(f"\n<b>{segment_title}</b>")
         for i, lead in enumerate(items):
             name = lead.get("business_name")
             email = lead.get("email")
             hizmet = lead.get("best_service", "").replace("_", " ").title()
-            
-            has_web = lead.get("website") != ""
-            web_tag = "🌐 [Web Var]" if has_web else "🚫 [Web YOK]"
-            
+
+            has_web = bool(lead.get("website"))
+            web_tag = "🌐" if has_web else "🚫"
+
             status_icon = "✅" if lead.get("status") == "sent" else "❌"
-            
-            lines.append(f"  {i+1}. 🏢 <b>{name}</b> {web_tag}")
+
+            lines.append(f"  {i+1}. {web_tag} <b>{name}</b>")
             lines.append(f"     📧 {email} {status_icon}")
-            lines.append(f"     💡 Önerilen: <i>{hizmet}</i>")
-        
+            lines.append(f"     💡 <i>{hizmet}</i>")
+
     lines.append("")
     lines.append("✉️ <b>Özet:</b>")
     lines.append(f"Başarılı: <b>{send_results.get('success', 0)}</b> | Başarısız: <b>{send_results.get('failed', 0)}</b>")

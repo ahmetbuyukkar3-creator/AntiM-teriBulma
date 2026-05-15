@@ -56,30 +56,79 @@ Haberlerinizi bekliyorum.
 Ahmet
 Rumaysoft Ekibi
 0553 705 8337
+rumaysoft.com""",
+
+    "klinik_ai_asistan": """Merhaba {yetkili_adi},
+
+Nasılsınız? Ben Ahmet, Rumaysoft'tan ulaşıyorum. {business_name} kliniğinizi incelerken aklıma hemen sizin için çalışabilecek bir fikir geldi. {kisisellestirme}
+
+Birçok özel klinik, hasta sorularını ve randevu taleplerini yönetmek için çok zaman harcıyor. Geliştirdiğimiz "Yapay Zeka Hasta Asistanı" sistemi sayesinde WhatsApp ve Instagram üzerinden gelen hasta mesajlarına 7/24 anında yanıt veriliyor; randevular otomatik olarak sisteme işleniyor.
+
+Doktorlarınız ve personelleriniz sadece gerçekten önemli işlere odaklanabiliyor, boş mesajlara cevap verme yüküyle uğraşmak zorunda kalmıyor. İstediğinizde hasta sizi değil, asistanınız sizi buluyor.
+
+10 dakikalık kısa bir görüşme ile sistemi canlı gösterebilirim — uygun bir zamanınız var mı?
+
+İyi çalışmalar.
+
+Ahmet
+Rumaysoft Ekibi
+0553 705 8337
+rumaysoft.com""",
+
+    "guzellik_ai_asistan": """Merhaba {yetkili_adi},
+
+Umarım güzel bir gün geçiriyorsunuzdur. Ben Ahmet, Rumaysoft'tan yazıyorum. {business_name}'i gezerken aklıma hemen sizi düşündürdü. {kisisellestirme}
+
+Güzellik ve kuaför sektöründe en büyük zorluk, randevu mesajlarını takip etmek ve her müşteriye hızlı dönmek. Özellikle yoğun günlerde bazı mesajlar gözden kaçabiliyor.
+
+Geliştirdiğimiz "Yapay Zeka Randevu Asistanı" ile WhatsApp veya Instagram üzerinden gelen tüm mesajlar anında cevaplanıyor, randevular otomatik alınıyor. Müşterileriniz sizi hiç beklemeden randevu alabilir, siz ise işinize odaklanabilirsiniz.
+
+Kısa bir demo için uygun bir zamanınız var mı?
+
+Sevgiler,
+
+Ahmet
+Rumaysoft Ekibi
+0553 705 8337
 rumaysoft.com"""
 }
 
 def generate_email_content(lead: Dict) -> Dict:
     """Bir firma için kişiselleştirilmiş mail konusunu ve içeriğini üretir."""
-    
+
     business_name = lead.get("business_name", "İşletme Yetkilisi")
-    service = lead.get("best_service", "stok_takibi")
+    service = lead.get("best_service", "ai_asistan")
     hint = lead.get("personalization_hint", f"{business_name} için dijital süreçlerinizi hızlandırmak isteriz.")
-    
-    system_prompt = """Sen Rumaysoft şirketinin uzman B2B metin yazarısın. İzmir'deki küçük işletmelere doğal, sıcak ve samimi "soğuk e-postalar" (cold email) yazıyorsun.
+    segment = lead.get("segment", "")
+
+    # Segment'e göre mail tonunu belirle
+    if segment == "klinik":
+        segment_context = ("Bu işletme bir ÖZEL KLİNİK (diş, dermatoloji, çocuk sağlığı vb.). "
+                           "Mail tonu profesyonel ama sıcak olsun. Hasta iletişimi ve randevu yönetimine odaklan. "
+                           "CTA: kısa bir görüşme veya demo talebi.")
+    elif segment == "guzellik":
+        segment_context = ("Bu işletme bir GÜZELLIK/KUAFÖR merkezi veya tırnak bakım salonu. "
+                           "Mail tonu daha samimi ve enerjik olsun. Randevu takibi ve müşteri mesajlarına odaklan. "
+                           "CTA: kısa bir demo talebi.")
+    else:
+        segment_context = "Genel bir işletme. Doğal ve samimi bir dil kullan."
+
+    system_prompt = f"""Sen Rumaysoft şirketinin uzman B2B metin yazarısın. İzmir'deki işletmelere doğal, sıcak ve samimi "soğuk e-postalar" (cold email) yazıyorsun.
 Asla "Sayın Yetkili", "Saygılarımla" gibi çok resmi ve robotik/spam kokan ifadeler KULLANMA. "Merhaba", "Nasılsınız?", "İyi çalışmalar" gibi daha insan gibi konuş.
 
+Segment Bilgisi: {segment_context}
+
 Görevin: Verilen firma bilgisi ve kişiselleştirme ipucunu kullanarak, satılması hedeflenen hizmete uygun bir mail yazmak.
-Kısa tut (maksimum 4-5 paragraf). Satış yapmaya çalışma, sadece merak uyandırıp görüşme talep et (CTA: telefon veya mesajla dönüş).
+Kısa tut (maksimum 4-5 paragraf). Satış yapmaya çalışma, sadece merak uyandırıp görüşme talep et.
 Kendini "Ahmet, Rumaysoft ekibinden" olarak tanıt. Mailin sonuna şu imza bloğunu mutlaka ekle:
 Ahmet
 Rumaysoft Ekibi
 0553 705 8337
 rumaysoft.com
 
-Ek Olarak: Mailin uygun bir yerine, Rumaysoft olarak sunduğumuz diğer hizmetlerden de (Modern Web Tasarımı, Yapay Zeka Destekli Satış Asistanları, Özel CRM ve Yazılım Çözümleri, İş Otomasyonları vb.) ufak, sıkıcı olmayan ve doğal bir cümleyle bahset ki, firmaya uygun farklı bir ihtiyaçları varsa bize oradan da dönebilsinler.
+Ek Olarak: Mailin uygun bir yerine, Rumaysoft'un diğer hizmetlerinden (Modern Web Tasarımı, AI Satış Asistanları, Özel CRM ve Yazılım Çözümleri, İş Otomasyonları) doğal bir cümleyle bahset.
 
-YANITINI SADECE AŞAĞIDAKİ FORMATTA VER (Subject ve Body olarak iki satır grubu):
+YANITINI SADECE AŞAĞIDAKİ FORMATTA VER:
 
 SUBJECT: [Mail Konusu - Dikkat çekici ama spam olmayan, emojili olabilir]
 BODY:
@@ -87,6 +136,7 @@ BODY:
 """
 
     prompt = f"""Firma Adı: {business_name}
+Segment: {segment if segment else "genel"}
 Satılacak Hizmet: {service.replace('_', ' ').title()}
 Kişiselleştirme İpucu: {hint}
 
@@ -109,17 +159,28 @@ Lütfen yukarıdaki kurallara göre maili hazırla."""
             logger.warning(f"⚠️ LLM mail ayrıştırma hatası: {e}")
             
     # Fallback (API yoksa veya hata olursa)
-    logger.info(f"  Fallback mail şablonu kullanılıyor ({service}).")
-    template = FALLBACK_TEMPLATES.get(service, FALLBACK_TEMPLATES["stok_takibi"])
+    # Segment'e özel template önceliklidir
+    if segment == "klinik":
+        template_key = "klinik_ai_asistan"
+        subject_default = f"🏥 {business_name} — Hasta İletişimini Kolaylaştıralım"
+    elif segment == "guzellik":
+        template_key = "guzellik_ai_asistan"
+        subject_default = f"✨ {business_name} — Randevu Takibinizi Otomatikleştirelim"
+    else:
+        template_key = service
+        subject_default = f"👋 {business_name} için Dijital Çözüm Önerisi"
+
+    logger.info(f"  Fallback mail şablonu kullanılıyor ({template_key}).")
+    template = FALLBACK_TEMPLATES.get(template_key, FALLBACK_TEMPLATES["ai_asistan"])
     body = template.format(
         yetkili_adi=business_name,
         business_name=business_name,
         kisisellestirme=hint
     )
-    
-    email_data["subject"] = f"👋 {business_name} için Dijital Çözüm Önerisi"
+
+    email_data["subject"] = subject_default
     email_data["body"] = body
-    
+
     return email_data
 
 def compose_emails(analyzed_leads: List[Dict]) -> List[Dict]:

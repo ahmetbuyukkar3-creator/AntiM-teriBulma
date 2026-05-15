@@ -127,14 +127,14 @@ def send_emails(leads: List[Dict]) -> Dict:
             
         results["details"].append(lead)
         
-        # Batch (Grup) Bekleme Mantığı
-        if (i + 1) % 5 == 0 and (i + 1) < len(leads):
+        # Batch (Grup) Bekleme Mantığı — Her 5 başarılı gönderim sonrası mola
+        if results["success"] > 0 and results["success"] % 5 == 0 and (i + 1) < len(leads):
             if Config.DRY_RUN:
                 wait_time = 15  # Test için 15 saniye
             else:
                 wait_time = random.randint(900, 1200)  # 15-20 dakika
-                
-            logger.info(f"⏳ BATCH MOLA: {i+1} mail gönderildi. Spam koruması için {wait_time} saniye ({wait_time//60} dakika) bekleniyor...")
+
+            logger.info(f"⏳ BATCH MOLA: {results['success']} mail gönderildi. Spam koruması için {wait_time} saniye ({wait_time//60} dakika) bekleniyor...")
             time.sleep(wait_time)
         
     logger.info(f"✅ Gönderim tamamlandı. Başarılı: {results['success']}, Başarısız: {results['failed']}")
